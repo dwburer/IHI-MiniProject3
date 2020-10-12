@@ -6,18 +6,32 @@
           outlined
         >
           <v-card-text>
+            <v-select
+                :items="endpoints"
+                label="Select API endpoint:"
+                v-on:change="endpointChanged"
+                v-model="selectedEndpoint"
+                filled
+              ></v-select>
+            <small>
+              Recommended patient IDs to try:
+              <ul>
+                <li v-for="p in recommendedPatients" :key="p">
+                  <code>{{p}}</code> <a v-on:click="patientId = p">(choose)</a>
+                </li>
+              </ul>
+            </small>
             <v-text-field
               v-model="patientId"
               class="align-baseline"
-              label="Patient ID"
+              label="Enter patient ID"
               outlined
-              hide-details="true"
             >
               <template v-slot:append-outer class="my-0">
                 <v-btn
                   v-on:click="getVitals"
                   color="primary"
-                  dark
+                  :disabled="!patientId"
                   large
                 >
                   Load Vitals
@@ -46,13 +60,18 @@
               <h3 class="ma-5">Vital signs overservation data not yet loaded.</h3>
             </template>
             <template v-else>
-              <v-select
-                :items="vitalCategories"
-                label="Select vitals to visualize"
-                v-model="selectedVitals"
-                multiple
-                chips
-              ></v-select>
+              <template v-if="errored">
+                <h3 class="red--text">Data for patient "{{errorId}}" could not be loaded from "{{selectedEndpoint}}".</h3>
+              </template>
+              <template v-else>
+                <v-select
+                  :items="vitalCategories"
+                  label="Select vitals to visualize"
+                  v-model="selectedVitals"
+                  multiple
+                  chips
+                ></v-select>
+              </template>
             </template>
           </v-card-text>
         </v-card>
@@ -83,12 +102,30 @@
   import LineChart from './Line.vue'
   import colors from 'vuetify/lib/util/colors'
 
+  const endpoints = [
+    'launch.smarthealthit.org/v/r4/fhir',
+    'r4.smarthealthit.org'
+  ]
+
+  const testPatients = {
+    'launch.smarthealthit.org/v/r4/fhir': [
+      '46d3785e-865b-46a5-8ea9-86a72a183de3',
+      '95c0165c-f900-4b50-90db-8176b4fd935d',
+    ],
+    'r4.smarthealthit.org': [
+      '7c058fdc-75a9-4837-bedf-3bf1924311b7',
+      '3ed2a74a-739a-4f67-8492-c7b94e61515f',
+    ]
+  }
+
   export default {
     name: 'Dashboard',
     components: { LineChart },
     data () {
       return {
-        patientId: '46d3785e-865b-46a5-8ea9-86a72a183de3',
+        selectedEndpoint: endpoints[0],
+        endpoints: endpoints,
+        patientId: '',
         info: null,
         loaded: false,
         loading: false,
@@ -101,6 +138,9 @@
       vitalCategories: function () {
         return Object.keys(this.vitals)
       },
+      recommendedPatients: function () {
+        return testPatients[this.selectedEndpoint]
+      }
     },
     filters: {
       currencydecimal (value) {
@@ -135,17 +175,25 @@
           ]
         }
       },
+      endpointChanged() {
+        this.vitals = {}
+        this.selectedVitals = []
+        this.loading = false
+        this.loaded = false
+        this.errored = false
+        this.patientId = ''
+      },
       getVitals() {
+        this.selectedVitals = []
         this.loading = true
+        this.errored = false
         axios
-          .get(`https://launch.smarthealthit.org/v/r4/fhir/Observation?patient=${this.patientId}&category=vital-signs`)
+          .get(`https://${this.selectedEndpoint}/Observation?patient=${this.patientId}&category=vital-signs`)
           .then(response => {
             const vitalDictionary = response.data.entry.reduce((hash, e) => {
                 e = e.resource;
 
                 const observations = [];
-
-                console.log(e)
 
                 if ('valueQuantity' in e && 'issued' in e) {
                   observations.push({
@@ -174,27 +222,18 @@
                 return hash
             }, {});
 
-            this.loaded = true
             this.vitals = vitalDictionary
           })
           .catch(error => {
             console.log(error)
+            this.errorId = this.patientId
             this.errored = true
           })
-          .finally(() => this.loading = false)
+          .finally(() => {
+            this.loading = false
+            this.loaded = true
+          })
       }
-    },
-    mounted () {
-      axios
-        .get('https://api.coindesk.com/v1/bpi/currentprice.json')
-        .then(response => {
-          this.info = response.data.bpi
-        })
-        .catch(error => {
-          console.log(error)
-          this.errored = true
-        })
-        .finally(() => this.loading = false)
     }
   }
 </script>

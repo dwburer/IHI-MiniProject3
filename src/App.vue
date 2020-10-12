@@ -8,7 +8,7 @@
       <v-toolbar-title>VitaDash</v-toolbar-title>
       <v-spacer></v-spacer>
       <v-btn
-        href="https://github.com/vuetifyjs/vuetify/releases/latest"
+        href="https://github.com/dwburer/IHI-MiniProject3"
         target="_blank"
         text
       >
